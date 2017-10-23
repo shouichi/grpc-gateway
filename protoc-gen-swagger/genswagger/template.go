@@ -14,6 +14,24 @@ import (
 	"github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway/descriptor"
 )
 
+var wellKnownTypeSchemas = map[string]schemaCore{
+	".google.protobuf.Duration": schemaCore{
+		Type: "string",
+	},
+	".google.protobuf.Int32Value": schemaCore{
+		Type:   "integer",
+		Format: "int32",
+	},
+	".google.protobuf.Int64Value": schemaCore{
+		Type:   "integer",
+		Format: "int64",
+	},
+	".google.protobuf.Timestamp": schemaCore{
+		Type:   "string",
+		Format: "date-time",
+	},
+}
+
 func listEnumNames(enum *descriptor.Enum) (names []string) {
 	for _, value := range enum.GetValue() {
 		names = append(names, value.GetName())
@@ -159,8 +177,7 @@ func findNestedMessagesAndEnumerations(message *descriptor.Message, reg *descrip
 
 func renderMessagesAsDefinition(messages messageMap, d swaggerDefinitionsObject, reg *descriptor.Registry) {
 	for name, msg := range messages {
-		switch name {
-		case ".google.protobuf.Timestamp":
+		if _, ok := wellKnownTypeSchemas[name]; ok {
 			continue
 		}
 		if opt := msg.GetOptions(); opt != nil && opt.MapEntry != nil && *opt.MapEntry {
@@ -214,11 +231,8 @@ func schemaOfField(f *descriptor.Field, reg *descriptor.Registry) swaggerSchemaO
 
 	switch ft := fd.GetType(); ft {
 	case pbdescriptor.FieldDescriptorProto_TYPE_ENUM, pbdescriptor.FieldDescriptorProto_TYPE_MESSAGE, pbdescriptor.FieldDescriptorProto_TYPE_GROUP:
-		if fd.GetTypeName() == ".google.protobuf.Timestamp" && pbdescriptor.FieldDescriptorProto_TYPE_MESSAGE == ft {
-			core = schemaCore{
-				Type:   "string",
-				Format: "date-time",
-			}
+		if schema, ok := wellKnownTypeSchemas[fd.GetTypeName()]; ok {
+			core = schema
 		} else {
 			core = schemaCore{
 				Ref: "#/definitions/" + fullyQualifiedNameToSwaggerName(fd.GetTypeName(), reg),
